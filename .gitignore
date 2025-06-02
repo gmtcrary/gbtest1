@@ -1,0 +1,15 @@
+*.swp
+*.exe
+
+build/
+*.asm
+*.gb
+*.ihx
+*.lst
+*.map
+*.noi
+*.o
+*.sym
+
+tools/
+*.ini
