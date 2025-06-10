@@ -3,49 +3,89 @@
 
 #include "assets/sprites/PinHeads.h"
 
-#define PINHEAD_LARRY 0
-#define PINHEAD_MOE   1
-#define CURSOR_SPRITE 2
+#define SPRITE_PINHEAD_LARRY_INDEX 0
+#define SPRITE_PINHEAD_MOE_INDEX   1
+#define SPRITE_CURSOR_INDEX  2 //3 is occupied by small
+
 #define CURSOR_ANIM_LEN 32
 
-int cursor_example(void){
+void init_setupSprites(void){
   set_sprite_data(0,4,PinHeads);
-  set_sprite_tile(PINHEAD_LARRY,0);
-  set_sprite_tile(PINHEAD_MOE,1);
-  set_sprite_tile(CURSOR_SPRITE,2); //3 and 4 for animation
+  set_sprite_tile(SPRITE_PINHEAD_LARRY_INDEX,0);
+  set_sprite_tile(SPRITE_PINHEAD_MOE_INDEX,1);
+  set_sprite_tile(SPRITE_CURSOR_INDEX, 2); //2 and 3 for animation
+}
 
-  uint8_t larry_x = 80;
-  uint8_t moe_x = 88;
-  const uint8_t items_y = 78;
+typedef struct screen_entity {
+  //TODO CURSOR SIZE FOR BIG BODY EXAMPLE
+  uint8_t sprite_index;
+  uint8_t screen_x;
+  uint8_t screen_y;
+} screen_entity;
 
-  move_sprite(PINHEAD_LARRY, larry_x, items_y); //Statically Draw Larry and Moe
-  move_sprite(PINHEAD_MOE, moe_x, items_y);
+void draw_game_entities(screen_entity *es, uint8_t es_len){
+  for(uint8_t i = 0; i < es_len; i++){
+    move_sprite(es[i].sprite_index, es[i].screen_x, es[i].screen_y);
+  }
+}
 
-  uint8_t selection[] = {larry_x, moe_x};
-  uint8_t selection_idx = 0;
+typedef struct screen_cursor {
+  screen_entity * selectables;  //CHANGES TO GAMESTATE SELECTABLES REQUIRE THE CURSOR TO BE REBUILT
+  uint8_t selectables_len;
+  uint8_t selection_idx;        //MUTABLE BY INPUT HANDLER
+  uint8_t sprite_index;
+
+  uint8_t anim_tick;
+  uint8_t anim_idx;
+} screen_cursor;
+
+void draw_screen_cursor(screen_cursor * c){
+    move_sprite(c->sprite_index
+        , c->selectables[c->selection_idx].screen_x
+        , c->selectables[c->selection_idx].screen_y);
+}
+void cursor_input_handler(screen_cursor *c, uint8_t joy){
+    //TODO INC AND LIMIT FOR N SELECTABLE ENTITIES
+    if(joy & J_LEFT){
+      c->selection_idx = 0;
+    }else if(joy & J_RIGHT){
+      c->selection_idx = 1;
+    }
+
+}
+
+void cursor_animation_handler(screen_cursor * c){
+    if(c->anim_tick == 0){
+      c->anim_idx ^= 1;
+      set_sprite_tile(c->sprite_index, c->sprite_index + c->anim_idx);
+      c->anim_tick = CURSOR_ANIM_LEN;
+    }
+    --c->anim_tick;
+}
+
+//Abstract over scene entity sprites
+int cursor_example(void){
+  init_setupSprites();
+
+  screen_entity game_entities[] = {                       //TODO make this references to gamestate entities?
+    { SPRITE_PINHEAD_LARRY_INDEX, 80, 78 }
+   ,{ SPRITE_PINHEAD_MOE_INDEX, 88, 78}
+  };
+  const uint8_t game_entities_len = 2;
+
+  screen_cursor cursor = {{ &game_entities[0], &game_entities[1] }, 2, 0, SPRITE_CURSOR_INDEX, CURSOR_ANIM_LEN, 0 };
 
   SHOW_SPRITES;
 
-  uint8_t anim_tick = CURSOR_ANIM_LEN;
-  uint8_t anim_idx = 0;
-
   for(;;){
-    move_sprite(CURSOR_SPRITE, selection[selection_idx], items_y); //Draw Cursor
+    draw_game_entities(game_entities, game_entities_len);
+    draw_screen_cursor(&cursor);
 
     vsync();
-    uint8_t joy = joypad();
-    if(joy & J_LEFT){ //&& selection_idx == 1){
-      selection_idx = 0;
-    }else if(joy & J_RIGHT){// && selection_idx == 0){
-      selection_idx = 1;
-    }
 
-    if(anim_tick == 0){
-      anim_idx ^= 1;
-      set_sprite_tile(CURSOR_SPRITE, 2 + anim_idx);
-      anim_tick = CURSOR_ANIM_LEN;
-    }
-    --anim_tick;
+    uint8_t joy = joypad();                               //TODO EXAMPLE PRESS A AND UI POPS UP, INSTALLS DIFFERENT INPUT HANDLER.
+    cursor_input_handler(&cursor, joy);
+    cursor_animation_handler(&cursor);
   }
 
 }
